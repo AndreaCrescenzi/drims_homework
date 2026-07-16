@@ -23,7 +23,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    pkg_dir = get_package_share_directory('drims2_homework')
+    pkg_dir = get_package_share_directory('drims_homework')
 
     bt_config_path_cmd = DeclareLaunchArgument(
         'bt_executer_config_path',
@@ -31,7 +31,7 @@ def generate_launch_description():
         description='Full path to the bt executer config path config file')
 
     bt_executer_node = Node(
-        package='drims2_behavior_tree',
+        package='easy_motion_behavior_tree',
         executable='bt_executer_node',
         name='bt_executer_node',
         output='screen',

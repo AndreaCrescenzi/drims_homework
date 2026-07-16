@@ -1,4 +1,4 @@
-# DRIMS2 Homework 🚧
+# DRIMS Homework 🚧
 
 This ROS 2 package serves as the starting point for the summer school challenge.  
 The repository is **work in progress** — more components and examples will be added soon.

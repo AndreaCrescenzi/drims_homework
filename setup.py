@@ -3,7 +3,7 @@ import os
 
 from setuptools import find_packages, setup
 
-package_name = 'drims2_homework'
+package_name = 'drims_homework'
 
 setup(
     name=package_name,
@@ -26,7 +26,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'demo_node = drims2_homework.demo_node:main',
+            'demo_node = drims_homework.demo_node:main',
         ],
     },
 )
