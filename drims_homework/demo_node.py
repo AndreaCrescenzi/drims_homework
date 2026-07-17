@@ -42,7 +42,7 @@ def main():
     logger = demo_node.get_logger()
 
     # --- 0) Move to home configuration and open gripper---
-    home_joints = [1.57, -1.57, 1.57, -1.57, -1.57, 0.0]
+    home_joints = [0.0, -1.97, 2.13, -1.83, -1.50, 0.0]
 
     logger.info("Moving to home configuration...")
     result = motion_client_node.move_to_joint(home_joints)
@@ -74,7 +74,7 @@ def main():
     pick_pose.header.stamp = demo_node.get_clock().now().to_msg()
     pick_pose.pose.position.x = 0.0
     pick_pose.pose.position.y = 0.0
-    pick_pose.pose.position.z = 0.01
+    pick_pose.pose.position.z = 0.0
     pick_pose.pose.orientation.x = 1.0
     pick_pose.pose.orientation.y = 0.0
     pick_pose.pose.orientation.z = 0.0
