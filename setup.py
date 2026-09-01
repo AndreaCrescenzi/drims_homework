@@ -27,6 +27,8 @@ setup(
     entry_points={
         'console_scripts': [
             'demo_node = drims_homework.demo_node:main',
+            'dice_plan_demo_node = drims_homework.dice_plan_demo_node:main',
+            'dice_reorient_node = drims_homework.dice_reorient_node:main',
         ],
     },
 )
