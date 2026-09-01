@@ -1,0 +1,112 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+    <!--
+    ReorientCycle: one full pick -> rotate -> place-at-zone-center cycle,
+    bringing whichever face is currently up to `target`. Reused once for
+    an adjacent-face target, or twice (via an intermediate face) for an
+    opposite-face target -- see MainTree below.
+
+    The lift+rotate move is attempted at progressively larger lift heights
+    (Fallback: 0.15 -> 0.22 -> 0.32 -> 0.45m), combined lift+rotation in a
+    single MoveToPose per level rather than two separate moves. This
+    matters for two reasons: (1) a genuine reachability failure (not the
+    transient motion_server IK-timeout bug -- see TESTING.md / project
+    memory) is deterministic, retrying the exact same pose gives the exact
+    same NO_IK_SOLUTION every time, so more clearance from the table is
+    what actually resolves it, not repetition; (2) splitting lift and
+    rotate into two separate moves let an earlier version of this tree
+    partially succeed (lift moves the arm) then fail (rotate doesn't), so
+    the *next* Fallback branch's "relative" lift stacked on top of the
+    already-executed one instead of starting clean -- observed compounding
+    into an ever-taller, ever-more-unreachable pose. A single combined
+    move either fully succeeds or leaves the arm exactly where it started
+    (MoveIt doesn't execute a plan it couldn't find), so each escalation
+    level is a true independent attempt. A true wedge (SEND_GOAL_TIMEOUT)
+    is not retried here at all -- that's handled by run_bt.sh restarting
+    the whole robot stack.
+
+    Tried cartesian_motion="true" on the lift+rotate move to get smoother,
+    more predictable motion (reported live as the arm visibly "flailing"
+    between escalation levels with joint-space planning, since each
+    independent OMPL plan has no continuity guarantee and can land on a
+    very different configuration -- elbow flip, wrist reconfiguration --
+    than the previous attempt). Reverted: a combined ~90 degree
+    reorientation plus translation is usually infeasible as a single
+    straight-line Cartesian path, so cartesian_motion="true" here failed
+    fast and consistently (FAILURE, not even NO_IK_SOLUTION) instead of
+    the escalation ever getting a chance to work. Kept cartesian_motion
+    "false" (joint-space) for lift+rotate, but added velocity_scaling to
+    slow it down -- doesn't fix the underlying discontinuity between
+    escalation attempts, but keeps whatever reconfiguration does happen
+    visibly controlled rather than sudden. cartesian_motion="true" is
+    kept for the final placement move (a pure translation, no rotation,
+    which straight-line planning handles fine) and bypasses
+    motion_server's buggy _compute_ik path there as a bonus (see
+    TESTING.md / project memory).
+    -->
+    <BehaviorTree ID="ReorientCycle">
+        <Sequence>
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
+            <GetGraspOrientation current_face="{face}" target_face="{target}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
+            </RetryUntilSuccessful>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
+            <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
+            <GetFaceRotation current_face="{face}" target_face="{target}" orientation="{rel_quat}" ref_frame="{ref_frame}"/>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.20" orientation="0.0;0.0;0.0;1.0"/>
+            </RetryUntilSuccessful>
+            <Fallback>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
+                <Sequence>
+                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.10" orientation="0.0;0.0;0.0;1.0"/>
+                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
+                </Sequence>
+                <Sequence>
+                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.10" orientation="0.0;0.0;0.0;1.0"/>
+                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
+                </Sequence>
+                <Sequence>
+                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" velocity_scaling="0.4" frame_id="{ref_frame}" position="0.0;0.0;0.15" orientation="0.0;0.0;0.0;1.0"/>
+                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" velocity_scaling="0.4" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
+                </Sequence>
+            </Fallback>
+            <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
+            <ComputeXYCorrection current_pose="{dice_pose2}" target_x="0.6" target_y="0.1" xy_correction="{xy_corr}"/>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr}" orientation="0.0;0.0;0.0;1.0"/>
+            </RetryUntilSuccessful>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+            <DetachObject service_name="/detach_object" object_id="dice"/>
+        </Sequence>
+    </BehaviorTree>
+
+    <!--
+    MainTree: the real challenge entry point. Edit target_face below (the
+    one and only place it needs to be set) to change which face the die
+    should end up showing.
+    -->
+    <BehaviorTree ID="MainTree">
+        <Sequence>
+            <Script code="target_face:=2" />
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
+            <PlanRotationPath current_face="{face}" target_face="{target_face}" num_steps="{num_steps}" intermediate_face="{intermediate}"/>
+            <Fallback>
+                <Precondition if="num_steps==0" else="FAILURE">
+                    <AlwaysSuccess/>
+                </Precondition>
+                <Precondition if="num_steps==1" else="FAILURE">
+                    <SubTree ID="ReorientCycle" target="{target_face}"/>
+                </Precondition>
+                <Precondition if="num_steps==2" else="FAILURE">
+                    <Sequence>
+                        <SubTree ID="ReorientCycle" target="{intermediate}"/>
+                        <SubTree ID="ReorientCycle" target="{target_face}"/>
+                    </Sequence>
+                </Precondition>
+            </Fallback>
+        </Sequence>
+    </BehaviorTree>
+</root>
