@@ -1,0 +1,16 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+    <!--
+    Preview-only spike: moves the arm to the tilted pick pose (45deg off
+    vertical, same face pair as the untilted grasp) WITHOUT closing the
+    gripper or attaching -- just to visually confirm the geometry on
+    RViz before wiring tilt_deg into the real ReorientCycle escalation.
+    -->
+    <BehaviorTree ID="MainTree">
+        <Sequence>
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
+            <GetGraspOrientation current_face="{face}" target_face="1" tilt_deg="45.0" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
+        </Sequence>
+    </BehaviorTree>
+</root>

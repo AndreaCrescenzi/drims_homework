@@ -1,0 +1,31 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+    <!--
+    Diagnostic-only spike: tests whether a LOWER lift height (0.08m instead
+    of the usual 0.20m baseline) helps the 2->1 rotation at the die's
+    under-the-camera-bar spot -- to check the user's alternative hypothesis
+    (lower the arm to duck under the bar) against the already-confirmed
+    "move sideways, away from the bar" fix. Single attempt, no escalation
+    fallback, so the pass/fail signal is unambiguous. Always
+    detaches/opens the gripper at the end regardless of outcome.
+    -->
+    <BehaviorTree ID="MainTree">
+        <Sequence>
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
+            <GetGraspOrientation current_face="{face}" target_face="1" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
+            <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
+            <GetFaceRotation current_face="{face}" target_face="1" orientation="{rel_quat}" ref_frame="{ref_frame}"/>
+            <Fallback>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.08" orientation="{rel_quat}"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <Fallback>
+                <DetachObject service_name="/detach_object" object_id="dice"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+        </Sequence>
+    </BehaviorTree>
+</root>

@@ -45,40 +45,184 @@
     -->
     <BehaviorTree ID="ReorientCycle">
         <Sequence>
-            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <!-- Defensive release: if the PREVIOUS ReorientCycle attempt
+                 (e.g. the direct-rotation try, before a flip_grasp/tilt_deg
+                 fallback) failed mid-rotation, it exits FAILURE with the
+                 die still attached and the gripper still closed -- there's
+                 no detach/open on the failure path, only on success.
+                 Detach/open here first, wherever the arm currently is, so
+                 the die settles back to the table under it before we read
+                 its face; ignore DetachObject failure (Fallback +
+                 AlwaysSuccess) since on the normal path nothing is
+                 attached yet and that's not an error.
+                 No MoveToJoint-to-home here anymore: MainTree already
+                 homes before the first ReorientCycle call, and repeating
+                 it on every single call (direct attempt, then again for
+                 every flip_grasp/tilt_deg/detour fallback) was pure
+                 wasted time when the arm was already there. The one place
+                 a fresh-process wedge was ever observed is the very FIRST
+                 MoveToPose/MoveToJoint after bt_executer_node starts up
+                 (see TESTING.md / project memory) -- MainTree's own home
+                 move already covers that once per run. -->
+            <Fallback>
+                <DetachObject service_name="/detach_object" object_id="dice"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
             <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
-            <GetGraspOrientation current_face="{face}" target_face="{target}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <!-- GetFaceRotation moved up here, before the pick, from where
+                 it used to sit (right before the rotate move): it only
+                 needs current_face/target_face -- both already known --
+                 via TF lookups on the die's own face{N}_tf frames, which
+                 don't depend on the robot having touched the die at all.
+                 Computing it now lets GetGraspOrientation see the
+                 rotation it's about to be asked to perform and pick a
+                 tilt sign that agrees with it (see that class's
+                 comment) -- and conveniently means the SAME rel_quan/
+                 ref_frame get reused for the actual rotate move further
+                 down instead of looking it up twice. -->
+            <GetFaceRotation current_face="{face}" target_face="{target}" orientation="{rel_quat}" ref_frame="{ref_frame}"/>
+            <GetGraspOrientation current_face="{face}" target_face="{target}" flip_grasp="{flip_grasp}" tilt_deg="{tilt_deg}" rotation_quat="{rel_quat}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
             <RetryUntilSuccessful num_attempts="2">
                 <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
             </RetryUntilSuccessful>
             <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
             <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
-            <GetFaceRotation current_face="{face}" target_face="{target}" orientation="{rel_quat}" ref_frame="{ref_frame}"/>
+            <!-- Relocate to the safe zone (away from the camera bar --
+                 see the placement-target comment below) BEFORE rotating,
+                 not just at the end: the die can spawn anywhere in the
+                 challenge's allowed area, including right under the bar,
+                 and the rotation itself (not just the final placement)
+                 fails there. Using dice_pose (captured before any lift,
+                 at the original DiceIdentification above) rather than a
+                 post-lift reading, since a pure XY correction doesn't
+                 care about height. z_offset=0.10 lifts by that fixed
+                 clearance WHILE translating, combined into the single
+                 move below -- unlike lift+ROTATE (which reliably fails to
+                 find a straight-line Cartesian path for large
+                 reorientations, why those stay two separate moves),
+                 lift+TRANSLATE is just a 3D straight line, no orientation
+                 change involved, so combining them is safe and saves a
+                 whole extra planning+execution round-trip.
+                 Same (0.45, 0.1) as the final placement target below, by
+                 design: rotating in place only drifts the die a little
+                 (a few cm, since the rotation pivot isn't exactly the
+                 die's center) -- deliberately using the same target for
+                 both means the post-rotation ComputeXYCorrection further
+                 down only has that small drift plus the release descent
+                 left to do, in one move, instead of a whole separate trip
+                 to a different spot. -->
+            <ComputeXYCorrection current_pose="{dice_pose}" target_x="0.45" target_y="0.1" z_offset="0.10" xy_correction="{xy_corr_pre}"/>
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.20" orientation="0.0;0.0;0.0;1.0"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr_pre}" orientation="0.0;0.0;0.0;1.0"/>
             </RetryUntilSuccessful>
+            <!-- No separate baseline lift before rotating anymore: the
+                 relocation move just above already leaves the die 0.10m
+                 up (z_offset), which is already at the bottom of the
+                 0.10-0.18m range historically found necessary to avoid
+                 NO_IK_SOLUTION on a pure in-place rotation (see
+                 ReorientCycle's header history) -- stacking another 0.20m
+                 on top of that was needless height (and an extra
+                 planning+execution round-trip) once the relocation lift
+                 already covers it. rel_quat/ref_frame already computed
+                 above (before the pick), reused here as-is: purely
+                 orientation-based, unaffected by the die having moved. -->
+            <!-- Two height-escalation levels only (was five, one a
+                 copy-paste duplicate): a joint-limit failure doesn't
+                 respond to more clearance margin (verified empirically up
+                 to 0.50m -- see grasp-angle fallbacks in MainTree, which
+                 are what actually addresses that failure mode), so extra
+                 height levels here only burn run_bt.sh's wall-clock
+                 budget across the now-several grasp-angle variants without
+                 improving the odds. Kept two levels for genuine
+                 clearance-limited cases on other face pairs. -->
             <Fallback>
                 <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
-                <Sequence>
-                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.10" orientation="0.0;0.0;0.0;1.0"/>
-                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
-                </Sequence>
-                <Sequence>
-                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.10" orientation="0.0;0.0;0.0;1.0"/>
-                    <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
-                </Sequence>
                 <Sequence>
                     <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" velocity_scaling="0.4" frame_id="{ref_frame}" position="0.0;0.0;0.15" orientation="0.0;0.0;0.0;1.0"/>
                     <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" velocity_scaling="0.4" frame_id="{ref_frame}" position="0.0;0.0;0.0" orientation="{rel_quat}"/>
                 </Sequence>
             </Fallback>
-            <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
-            <ComputeXYCorrection current_pose="{dice_pose2}" target_x="0.6" target_y="0.1" xy_correction="{xy_corr}"/>
-            <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr}" orientation="0.0;0.0;0.0;1.0"/>
-            </RetryUntilSuccessful>
-            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
-            <DetachObject service_name="/detach_object" object_id="dice"/>
+            <!-- skip_placement (required on every caller, see MainTree):
+                 true for the INTERMEDIATE hop of a two-cycle (opposite-
+                 face) rotation only. That hop's placement is thrown away
+                 almost immediately -- the second cycle re-identifies and
+                 re-picks the die from wherever it landed regardless -- so
+                 the precise XY+Z correction below is both wasted work and
+                 (observed empirically) a real source of failure: it can
+                 leave the arm in a post-rotation wrist configuration from
+                 which that correction has NO reachable solution at all
+                 (cartesian AND joint-space both failed, NO_IK_SOLUTION),
+                 with no further fallback at the MainTree level for
+                 num_steps==2 to recover from. Skipping it here means the
+                 intermediate hop just opens the gripper and lets the die
+                 drop/settle wherever, which is fine since nothing reads
+                 its position precisely until the second cycle's own
+                 identification. Fallback structure: the Precondition
+                 reports FAILURE outright (without even trying its child)
+                 when skip_placement is false, so the outer Fallback moves
+                 on to the full precise-placement branch; when true, it
+                 runs the simplified release and the Fallback stops there. -->
+            <Fallback>
+                <Precondition if="skip_placement == 'true'" else="FAILURE">
+                    <Sequence>
+                        <Fallback>
+                            <DetachObject service_name="/detach_object" object_id="dice"/>
+                            <AlwaysSuccess/>
+                        </Fallback>
+                        <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+                    </Sequence>
+                </Precondition>
+                <Sequence>
+                    <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
+                    <!-- (0.45, 0.1) instead of the originally-chosen (0.6,
+                         0.1): the cell has a real camera-mount crossbar
+                         (collision geometry in the SRDF, not just visual)
+                         whose shadow covers a wider stretch of the table
+                         than a single point -- confirmed empirically (see
+                         project memory / TESTING.md) that x=0.6 fails even
+                         at y=-0.15, while (0.45, 0.1) is clear and
+                         reachable directly. Lowering the lift height does
+                         NOT help clearing the bar (tested down to 0.08m,
+                         still fails) -- the interference is the arm's own
+                         wrist/forearm sweep needed for that orientation,
+                         not the die/gripper height, so only moving
+                         sideways, out from under the bar, actually fixes
+                         it.
+                         target_z=0.027 (base_link) is the die's own
+                         measured resting height (TF: base_link ->
+                         dice_tf when sitting flat on the table) --
+                         correcting straight to this known value in the
+                         SAME move as the XY correction, rather than
+                         trying to mirror each intermediate lift (the
+                         pre-rotation relocation's 0.10m clearance lift,
+                         the baseline 0.20m rotation lift, ...) with a
+                         matching descent by hand: that approach was tried
+                         and left the die released ~0.3m above the table,
+                         because those lifts don't cleanly cancel out (the
+                         escalation branch adds its own on top, the
+                         relocation lift is separate again) -- correcting
+                         to a known absolute height, exactly like
+                         target_x/target_y already do, is robust
+                         regardless of which lifts happened on the way. -->
+                    <ComputeXYCorrection current_pose="{dice_pose2}" target_x="0.45" target_y="0.1" target_z="0.027" xy_correction="{xy_corr}"/>
+                    <!-- Fallback, not RetryUntilSuccessful: observed this
+                         combined XY+Z correction fail deterministically
+                         (ACTION_ABORTED) from certain post-rotation wrist
+                         configurations -- retrying the identical cartesian
+                         move just repeats the same failure. Falls back to
+                         joint-space planning, the same escalation strategy
+                         already used for the rotation step above, rather
+                         than a plain retry of an unreachable straight-line
+                         path. -->
+                    <Fallback>
+                        <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr}" orientation="0.0;0.0;0.0;1.0"/>
+                        <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" velocity_scaling="0.4" frame_id="base_link" position="{xy_corr}" orientation="0.0;0.0;0.0;1.0"/>
+                    </Fallback>
+                    <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+                    <DetachObject service_name="/detach_object" object_id="dice"/>
+                </Sequence>
+            </Fallback>
         </Sequence>
     </BehaviorTree>
 
@@ -89,21 +233,65 @@
     -->
     <BehaviorTree ID="MainTree">
         <Sequence>
-            <Script code="target_face:=2" />
+            <Script code="target_face:=6" />  <!-- STRESS_TEST_TARGET -->
+            <!-- Same defensive release ReorientCycle does at its own
+                 start, but here at the MainTree entry point too: if
+                 num_steps ends up 0 (die already showing target_face),
+                 ReorientCycle is never called at all, so its own
+                 defensive detach/open would never run -- silently
+                 reporting success while a die left attached/mid-air from
+                 a previous crashed/interrupted run gets read as if it
+                 were genuinely resting and showing that face. Observed
+                 directly: a leftover attached die's in-air orientation
+                 happened to read as a plausible face, and the tree
+                 reported "no errors" while the die was still in the
+                 gripper the whole time. -->
+            <Fallback>
+                <DetachObject service_name="/detach_object" object_id="dice"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
             <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
             <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
-            <PlanRotationPath current_face="{face}" target_face="{target_face}" num_steps="{num_steps}" intermediate_face="{intermediate}"/>
+            <PlanRotationPath current_face="{face}" target_face="{target_face}" num_steps="{num_steps}" intermediate_face="{intermediate}" detour_face="{detour}"/>
             <Fallback>
                 <Precondition if="num_steps==0" else="FAILURE">
                     <AlwaysSuccess/>
                 </Precondition>
                 <Precondition if="num_steps==1" else="FAILURE">
-                    <SubTree ID="ReorientCycle" target="{target_face}"/>
+                    <!-- Direct rotation first, DEFAULT grasp -- which is
+                         now tilt_deg=-45 (see GetGraspOrientation): the
+                         wrist tilts forward, in the direction of reach,
+                         verified empirically to reliably clear the
+                         post-pick rotation. If it still fails entirely
+                         (exhausts ReorientCycle's own escalation) for some
+                         other face pair, escalate through other wrist
+                         configurations reaching the *same* physical grasp
+                         (same face pair pinched, so target_face safety is
+                         unaffected): yaw flipped 180 degrees (still at the
+                         default -45 tilt), then the plain vertical grasp
+                         (tilt_deg=0, the previous default), then tilted
+                         the *other* way (+45 -- reliably fails this same
+                         rotation even with a clear, obstacle-free path,
+                         kept only as a last-ditch option before the
+                         detour). Only as a true last resort, route through
+                         detour_face instead: two differently-axed 90
+                         degree rotations replacing the one that's stuck. -->
+                    <Fallback>
+                        <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false"/>
+                        <SubTree ID="ReorientCycle" target="{target_face}" flip_grasp="true" skip_placement="false"/>
+                        <SubTree ID="ReorientCycle" target="{target_face}" tilt_deg="0.0" skip_placement="false"/>
+                        <SubTree ID="ReorientCycle" target="{target_face}" tilt_deg="45.0" skip_placement="false"/>
+                        <Sequence>
+                            <SubTree ID="ReorientCycle" target="{detour}" skip_placement="true"/>
+                            <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false"/>
+                        </Sequence>
+                    </Fallback>
                 </Precondition>
                 <Precondition if="num_steps==2" else="FAILURE">
                     <Sequence>
-                        <SubTree ID="ReorientCycle" target="{intermediate}"/>
-                        <SubTree ID="ReorientCycle" target="{target_face}"/>
+                        <SubTree ID="ReorientCycle" target="{intermediate}" skip_placement="true"/>
+                        <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false"/>
                     </Sequence>
                 </Precondition>
             </Fallback>
