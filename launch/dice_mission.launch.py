@@ -46,6 +46,11 @@ def launch_setup(context, *args, **kwargs):
         'place_y': LaunchConfiguration('place_y').perform(context),
         'place_z': LaunchConfiguration('place_z').perform(context),
         'lift_height': LaunchConfiguration('lift_height').perform(context),
+        'tilt_deg': LaunchConfiguration('tilt_deg').perform(context),
+        'place_x_vertical': LaunchConfiguration('place_x_vertical').perform(context),
+        'place_y_vertical': LaunchConfiguration('place_y_vertical').perform(context),
+        'place_z_vertical': LaunchConfiguration('place_z_vertical').perform(context),
+        'lift_height_vertical': LaunchConfiguration('lift_height_vertical').perform(context),
     })
 
     bt_executer_node = Node(
@@ -98,11 +103,63 @@ def generate_launch_description():
                      'below that -- watch RViz closely the first time you '
                      'lower this further.')
 
+    tilt_deg_arg = DeclareLaunchArgument(
+        'tilt_deg',
+        default_value='auto',
+        description="Pick approach angle about the gripper's closing "
+                     "axis. 'auto' (default): geometry-derived sign, "
+                     '~45deg tilted approach -- lets the final placement '
+                     "bring the die closer to the table than a vertical "
+                     "approach would. '0': plain vertical approach (no "
+                     "tilt). '45'/'-45' (or any value): explicit "
+                     'override, mainly for diagnosing which sign a given '
+                     'current/target face pair wants, or comparing '
+                     'vertical vs. tilted reachability near the edge of '
+                     'the workspace.')
+    place_x_vertical_arg = DeclareLaunchArgument(
+        'place_x_vertical',
+        default_value='0.55',
+        description='place_x variant used ONLY when tilt_deg resolves to '
+                     'exactly 0. NOT YET EMPIRICALLY VERIFIED -- defaults '
+                     'to the same value as place_x.')
+    place_y_vertical_arg = DeclareLaunchArgument(
+        'place_y_vertical',
+        default_value='0.1',
+        description='place_y variant used ONLY when tilt_deg resolves to '
+                     'exactly 0. NOT YET EMPIRICALLY VERIFIED -- defaults '
+                     'to the same value as place_y.')
+    place_z_vertical_arg = DeclareLaunchArgument(
+        'place_z_vertical',
+        default_value='0.05',
+        description='Release height used ONLY when tilt_deg resolves to '
+                     'exactly 0 (a vertical approach needs a bit more '
+                     'clearance above the table at release than the '
+                     'tilted approach place_z is tuned for). ABSOLUTE '
+                     'target, not added to lift_height_vertical -- keep '
+                     'it noticeably below place_z + lift_height_vertical '
+                     'or the placement move rises instead of descending. '
+                     'NOT YET EMPIRICALLY VERIFIED -- a starting guess; '
+                     'watch RViz closely the first time a vertical '
+                     'placement runs.')
+    lift_height_vertical_arg = DeclareLaunchArgument(
+        'lift_height_vertical',
+        default_value='0.07',
+        description='lift_height variant used ONLY when tilt_deg '
+                     'resolves to exactly 0. NOT YET EMPIRICALLY '
+                     'VERIFIED -- defaults to the earlier-verified 0.07 '
+                     'rather than the more aggressive 0.05 now used for '
+                     'the tilted case.')
+
     return LaunchDescription([
         target_face_arg,
         place_x_arg,
         place_y_arg,
         place_z_arg,
         lift_height_arg,
+        tilt_deg_arg,
+        place_x_vertical_arg,
+        place_y_vertical_arg,
+        place_z_vertical_arg,
+        lift_height_vertical_arg,
         OpaqueFunction(function=launch_setup),
     ])

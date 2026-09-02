@@ -9,8 +9,47 @@
 # See drims_homework/mission_params.py for what each value does and its
 # safety caveats (place_x/y, lift_height in particular).
 
-target_face: 1
+target_face: 6
 place_x: 0.55
 place_y: 0.1
 place_z: 0.027
-lift_height: 0.07
+lift_height: 0.05
+
+# Pick approach angle, applied about the gripper's own closing axis:
+#   auto  (default) -- geometry-derived sign, ~45deg tilted approach;
+#                       lets the final placement bring the die closer to
+#                       the table than a vertical approach would.
+#   0     -- plain vertical approach (no tilt).
+#   45 / -45 (or any value) -- explicit override, mainly for diagnosing
+#                       which sign a given current/target face pair wants,
+#                       or comparing vertical vs. tilted reachability near
+#                       the edge of the workspace.
+tilt_deg: auto
+
+# place_x/y/z and lift_height variants used ONLY when tilt_deg resolves
+# to exactly 0 (a vertical approach) -- override the corresponding base
+# value above for that case. A vertical approach needs different
+# clearances than the ~45deg tilted approach the base values are tuned
+# for: a bit more height at release (place_z_vertical) since the gripper
+# body comes straight down instead of diagonally, and possibly a
+# different safe zone / lift clearance too (place_x/y_vertical,
+# lift_height_vertical) since that safe zone was only verified reachable
+# with the tilted wrist configuration.
+#
+# IMPORTANT: place_z_vertical is an ABSOLUTE target height (like place_z),
+# NOT added on top of lift_height_vertical -- they're two independent
+# moves (lift_height_vertical is the RELATIVE lift during the pre-
+# rotation relocation; place_z_vertical is the ABSOLUTE final height).
+#
+# VERIFIED (RViz, 2026-09-02): setting place_z_vertical ==
+# place_z + lift_height_vertical makes the final placement move's
+# vertical delta ~0 -- the relocation lift already reaches that exact
+# absolute height, so the placement step has nothing left to do in Z
+# (only a small XY correction for any drift the rotation caused) before
+# opening the gripper. No visible extra rise/descent. 0.13 = 0.027
+# (place_z) + 0.1 (lift_height_vertical, rounded) -- keep this relation
+# if you change either value.
+place_x_vertical: 0.55
+place_y_vertical: 0.1
+place_z_vertical: 0.13
+lift_height_vertical: 0.1

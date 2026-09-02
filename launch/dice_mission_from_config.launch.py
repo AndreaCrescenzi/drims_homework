@@ -31,7 +31,21 @@
 # (drims_homework/mission_params.py) to rewrite dice_challenge.xml's
 # values before launching -- see that module's docstring for why this
 # rewrites the tree file instead of passing ROS parameters.
+#
+# config_file's default below points at the SOURCE copy of the YAML
+# (~/drims_ws/src/...), not the installed one colcon build copies into
+# ~/drims_ws/install/.../share/drims_homework/config/ -- colcon build
+# here doesn't symlink-install, so without this an edited YAML would
+# have no effect until the next `colcon build --packages-select
+# drims_homework`, which is exactly the confusing "I changed the value
+# but nothing changed" trap this avoids. (dice_challenge.xml itself
+# still has to be the installed copy -- bt_executer_node's own C++ code
+# always resolves it via the package share directory, there's no way
+# to point that at source -- but patch_tree() rewrites that installed
+# copy fresh on every launch regardless of where the YAML values came
+# from, so that one was never stale.)
 
+import os
 import yaml
 
 from ament_index_python.packages import get_package_share_directory
@@ -67,13 +81,17 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
-    pkg_dir = get_package_share_directory('drims_homework')
+    source_config_path = os.path.expanduser(
+        '~/drims_ws/src/drims_homework/config/dice_mission_params.yaml')
     config_file_arg = DeclareLaunchArgument(
         'config_file',
-        default_value=pkg_dir + '/config/dice_mission_params.yaml',
+        default_value=source_config_path,
         description='Path to a YAML file with target_face/place_x/'
                      'place_y/place_z/lift_height (any subset -- see '
-                     'config/dice_mission_params.yaml for the format).')
+                     'config/dice_mission_params.yaml for the format). '
+                     'Defaults to the SOURCE file (bind-mounted, no '
+                     'rebuild needed to pick up edits), not the copy '
+                     'colcon installs.')
 
     return LaunchDescription([
         config_file_arg,
