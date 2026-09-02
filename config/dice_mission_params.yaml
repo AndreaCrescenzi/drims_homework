@@ -1,0 +1,16 @@
+# Mission parameters for dice_challenge.xml, read by
+# dice_mission_from_config.launch.py (edit this file, then just
+# `ros2 launch drims_homework dice_mission_from_config.launch.py`,
+# instead of typing target_face:=... place_x:=... etc. by hand every
+# time -- see dice_mission.launch.py for the CLI-argument alternative,
+# still available if you want to override one value for a single run
+# without editing this file).
+#
+# See drims_homework/mission_params.py for what each value does and its
+# safety caveats (place_x/y, lift_height in particular).
+
+target_face: 1
+place_x: 0.55
+place_y: 0.1
+place_z: 0.027
+lift_height: 0.07
