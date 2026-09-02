@@ -192,6 +192,12 @@
                     </Sequence>
                 </Precondition>
             </Fallback>
+            <!-- Return home once, here at the very end of the whole
+                 mission -- not inside ReorientCycle, which would also
+                 run this between the two hops of an opposite-face
+                 (num_steps==2) rotation, homing needlessly in the
+                 middle of a single logical mission. -->
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
         </Sequence>
     </BehaviorTree>
 </root>
