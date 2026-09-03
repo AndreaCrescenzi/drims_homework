@@ -35,12 +35,46 @@
                  before we read its face; ignore DetachObject failure
                  (Fallback + AlwaysSuccess -- this is error suppression
                  for an expected no-op, not a strategy alternative) since
-                 on the normal path nothing is attached yet. -->
+                 on the normal path nothing is attached yet.
+                 position=0.043 (not the "real" open value 0.045 used
+                 elsewhere below): on the real robot,
+                 robotiq_2f_adapter_node.py (organizers' code in
+                 ~/static/drims2_ws, not ours -- not modifying it) throws
+                 an exception whenever the requested position is EXACTLY
+                 equal to the gripper's current one (an int-vs-float bug
+                 in its own "already there" success branch). This
+                 defensive open is exactly the highest-risk case for that:
+                 called right after MainTree's own identical defensive
+                 open moments earlier (nothing in between touches the
+                 gripper), so requesting the SAME 0.045 here is guaranteed
+                 to collide with it.
+                 IMPORTANT: the adapter compares NORMALIZED positions (an
+                 int 0-255, not raw meters) -- verified from the gripper's
+                 own autocalibrated range (~0.00176m to ~0.04941m over 255
+                 steps, ~0.187mm/step). A first attempt using 0.0449 (only
+                 0.1mm off, less than one step) still collided, since it
+                 normalized to the SAME integer as 0.045 -- confirmed by
+                 the bug still firing. 0.043 (2mm off, ~10+ steps) is
+                 comfortably larger than the step size, guaranteeing a
+                 different normalized value, while still well within the
+                 die's grasp tolerance -- mechanically indistinguishable
+                 from a full open. Worked around entirely on our side,
+                 without touching their file. -->
             <Fallback>
                 <DetachObject service_name="/detach_object" object_id="dice"/>
                 <AlwaysSuccess/>
             </Fallback>
-            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+            <!-- Fallback + AlwaysSuccess: don't let a GripperCommand
+                 failure (e.g. the real robot's effort/float bug, or any
+                 other transient gripper fault) abort the whole Sequence
+                 -- same error-suppression idiom already used for
+                 DetachObject above. Trade-off accepted deliberately: we
+                 don't verify the gripper actually reached this position
+                 before moving on. -->
+            <Fallback>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.043" max_effort="1.0"/>
+                <AlwaysSuccess/>
+            </Fallback>
             <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
             <!-- GetFaceRotation before the pick: it only needs
                  current_face/target_face via TF lookups on the die's own
@@ -54,7 +88,10 @@
             <RetryUntilSuccessful num_attempts="2">
                 <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
             </RetryUntilSuccessful>
-            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
+            <Fallback>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
+                <AlwaysSuccess/>
+            </Fallback>
             <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
             <!-- Relocate to the safe zone (away from the cell's
                  camera-mount crossbar -- real collision geometry in the
@@ -74,7 +111,7 @@
                  stay separate below). 0.10m is also already enough
                  clearance for the rotation itself, so no separate
                  baseline lift is needed before rotating. -->
-            <ComputeXYCorrection current_pose="{dice_pose}" target_x="0.55" target_y="0.1" z_offset="0.07" xy_correction="{xy_corr_pre}"/>
+            <ComputeXYCorrection current_pose="{dice_pose}" target_frame="camera_frame_floor" target_x="-0.1" target_y="0.5" z_offset="0.07" xy_correction="{xy_corr_pre}"/>
             <RetryUntilSuccessful num_attempts="2">
                 <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr_pre}" orientation="0.0;0.0;0.0;1.0"/>
             </RetryUntilSuccessful>
@@ -109,12 +146,12 @@
                 <Precondition if="skip_placement == 'true'" else="FAILURE">
                     <Sequence>
                         <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
-                        <ComputeXYCorrection current_pose="{dice_pose2}" target_x="0.55" target_y="0.1" xy_correction="{xy_corr_mid_xy}"/>
+                        <ComputeXYCorrection current_pose="{dice_pose2}" target_frame="camera_frame_floor" target_x="-0.1" target_y="0.5" xy_correction="{xy_corr_mid_xy}"/>
                         <RetryUntilSuccessful num_attempts="2">
                             <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr_mid_xy}" orientation="0.0;0.0;0.0;1.0"/>
                         </RetryUntilSuccessful>
                         <DiceIdentification service_name="/dice_identification" face_number="{face2b}" pose="{dice_pose2b}"/>
-                        <ComputeXYCorrection current_pose="{dice_pose2b}" target_x="0.55" target_y="0.1" target_z="0.027" xy_correction="{xy_corr_mid_z}"/>
+                        <ComputeXYCorrection current_pose="{dice_pose2b}" target_frame="camera_frame_floor" target_x="-0.1" target_y="0.5" target_z="0.03" xy_correction="{xy_corr_mid_z}"/>
                         <RetryUntilSuccessful num_attempts="2">
                             <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr_mid_z}" orientation="0.0;0.0;0.0;1.0"/>
                         </RetryUntilSuccessful>
@@ -122,32 +159,44 @@
                             <DetachObject service_name="/detach_object" object_id="dice"/>
                             <AlwaysSuccess/>
                         </Fallback>
-                        <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+                        <Fallback>
+                            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+                            <AlwaysSuccess/>
+                        </Fallback>
                     </Sequence>
                 </Precondition>
                 <Sequence>
                     <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
-                    <!-- (0.55, 0.1): the cell's camera bar's shadow
-                         covers a wider stretch of the table than a
-                         single point -- confirmed empirically that
-                         x=0.6 fails even at y=-0.15, while (0.55, 0.1)
-                         is clear and reachable directly, and more
-                         reliably reachable for the final placement move
-                         than the originally-tried (0.45, 0.1) (observed
-                         failing there from some post-rotation wrist
-                         configurations, e.g. 3->5).
-                         target_z=0.027 (base_link) is the die's own
-                         measured resting height (TF: base_link ->
-                         dice_tf when sitting flat on the table) --
-                         correcting straight to this known value in the
-                         SAME move as the XY correction lands the die
-                         close to the table on release instead of
-                         dropping it from wherever the rotation left it. -->
-                    <ComputeXYCorrection current_pose="{dice_pose2}" target_x="0.55" target_y="0.1" target_z="0.027" xy_correction="{xy_corr}"/>
+                    <!-- target_frame="camera_frame_floor": place_x/y/z
+                         (from dice_mission.launch.py) are now interpreted
+                         in this frame, not base_link -- it hangs off
+                         "table_top" in the URDF (verified in
+                         ur5e_cell.urdf.xacro), so the safe-zone target
+                         stays physically correct even if a cell's
+                         base_link mounting angle changes, unlike a raw
+                         base_link number would. The specific reachability
+                         findings from the old base_link-tuned values
+                         (clear of the camera bar's shadow, etc.) don't
+                         carry over as numbers -- re-verify on RViz when
+                         picking a new camera_frame_floor point, same as
+                         before. target_z is still an absolute height, now
+                         measured in camera_frame_floor rather than
+                         base_link (the die's known resting height there
+                         needs re-deriving, not reused from the old
+                         base_link value). -->
+                    <!-- Same target as the pre-rotation relocation above,
+                         by design -- rotating in place only drifts the
+                         die a few cm, so this final correction only has
+                         to cover that small drift plus the release
+                         descent. -->
+                    <ComputeXYCorrection current_pose="{dice_pose2}" target_frame="camera_frame_floor" target_x="-0.1" target_y="0.5" target_z="0.03" xy_correction="{xy_corr}"/>
                     <RetryUntilSuccessful num_attempts="2">
                         <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="{xy_corr}" orientation="0.0;0.0;0.0;1.0"/>
                     </RetryUntilSuccessful>
-                    <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+                    <Fallback>
+                        <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+                        <AlwaysSuccess/>
+                    </Fallback>
                     <DetachObject service_name="/detach_object" object_id="dice"/>
                 </Sequence>
             </Fallback>
@@ -161,7 +210,7 @@
     -->
     <BehaviorTree ID="MainTree">
         <Sequence>
-            <Script code="target_face:=6" />  <!-- STRESS_TEST_TARGET -->
+            <Script code="target_face:=3" />  <!-- STRESS_TEST_TARGET -->
             <!-- Same defensive release ReorientCycle does at its own
                  start, but here at the MainTree entry point too: if
                  num_steps ends up 0 (die already showing target_face),
@@ -169,13 +218,22 @@
                  defensive detach/open would never run -- silently
                  reporting success while a die left attached/mid-air from
                  a previous interrupted run gets read as if it were
-                 genuinely resting and showing that face. -->
+                 genuinely resting and showing that face.
+                 position=0.043, same reasoning as ReorientCycle's own
+                 defensive open above (see that comment -- needs to differ
+                 from 0.045 by more than the gripper's ~0.187mm
+                 normalization step, not just be numerically distinct):
+                 avoids the real robot's exact-position-match gripper bug
+                 without touching the organizers' code. -->
             <Fallback>
                 <DetachObject service_name="/detach_object" object_id="dice"/>
                 <AlwaysSuccess/>
             </Fallback>
-            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
-            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <Fallback>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.043" max_effort="1.0"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <MoveToJoint action_name="/move_to_joint" joint_target="1.5708;-1.97;2.13;-1.83;-1.50;0.0"/>
             <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
             <PlanRotationPath current_face="{face}" target_face="{target_face}" num_steps="{num_steps}" intermediate_face="{intermediate}" detour_face="{detour}"/>
             <Fallback>
@@ -197,7 +255,7 @@
                  run this between the two hops of an opposite-face
                  (num_steps==2) rotation, homing needlessly in the
                  middle of a single logical mission. -->
-            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <MoveToJoint action_name="/move_to_joint" joint_target="1.5708;-1.97;2.13;-1.83;-1.50;0.0"/>
         </Sequence>
     </BehaviorTree>
 </root>

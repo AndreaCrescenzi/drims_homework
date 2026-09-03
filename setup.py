@@ -27,6 +27,8 @@ setup(
     entry_points={
         'console_scripts': [
             'demo_node = drims_homework.demo_node:main',
+            'dice_identification_noisy_node = drims_homework.dice_identification_noisy_node:main',
+            'labview_udp_bridge_node = drims_homework.labview_udp_bridge_node:main',
         ],
     },
 )

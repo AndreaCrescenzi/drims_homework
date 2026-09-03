@@ -1,0 +1,93 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+    <!--
+    Diagnostic/dev tree: disambiguates a 90deg-pip-symmetric starting face
+    (1, 4, or 5) with a SINGLE 180deg flip about a fixed world axis,
+    instead of the earlier 90deg-tip-and-lookup-table approach.
+
+    Rationale (derived and verified numerically, not guessed --
+    derive_opposite_flip.py in the scratchpad): a 180deg flip about ANY
+    horizontal world axis, for ANY grasp choice, for ANY of the die's 4
+    possible yaw hypotheses, (a) ALWAYS keeps the gripper's closing axis
+    exactly horizontal throughout (worst-case verticality 0.0 in every
+    single one of the 24 combinations checked -- vs. the 90deg tip, which
+    was ALWAYS fully vertical, 100% of the time, for any informative
+    choice), and (b) ALWAYS exposes the geometric opposite face
+    (deterministic, since opposite(face) sits on the vertical axis and a
+    180deg flip about any horizontal axis always maps +Z to -Z regardless
+    of azimuth).
+
+    The opposite of every ambiguous face is itself non-ambiguous (1<->6,
+    4<->3, 5<->2 -- none of 6/3/2 is in the 90deg-symmetric set), so the
+    face exposed by the flip is ALWAYS reliably readable by a real top-
+    down camera. This removes the entire 4-hypothesis lookup table
+    (ResolveAmbiguousFace) and the closing-axis-vertical release check
+    (CheckClosingAxisVertical) from the pipeline: we don't need to
+    recover face1's exact original orientation at all, because the
+    downstream handoff (ReorientCycle) re-identifies its own current face
+    from scratch as its first step anyway -- we only need THAT read to be
+    reliable, which the flip guarantees.
+
+    Flip axis: world_Y, 180deg (quaternion 0.0;1.0;0.0;0.0), commanded via
+    relative_motion=true in base_link (base_link and world share
+    orientation in this cell, confirmed empirically -- see
+    _test_disambiguation.xml). cartesian_motion=false: a 180deg
+    reorientation is far too large for straight-line Cartesian
+    interpolation (same reasoning as the 90deg tip in the earlier tree).
+    -->
+    <BehaviorTree ID="MainTree">
+        <Sequence>
+            <Fallback>
+                <DetachObject service_name="/detach_object" object_id="dice"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <DiceIdentification service_name="/dice_identification" face_number="{face1}" pose="{dice_pose1}"/>
+            <GetGraspOrientation current_face="{face1}" target_face="{face1}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
+            </RetryUntilSuccessful>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
+            <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="base_link" position="0.0;0.0;0.10" orientation="0.0;0.0;0.0;1.0"/>
+            </RetryUntilSuccessful>
+            <!-- The flip: 180deg about world Y, split into two 90deg steps.
+                 A single 180deg MoveToPose hit a REAL NO_IK_SOLUTION (not
+                 a Cartesian-interpolation artifact -- ~24s x2 retries,
+                 the same signature as a genuine reachability limit): too
+                 large a reorientation for the wrist to complete in one
+                 shot from this pick pose. Each 90deg step individually is
+                 already proven reachable (same move used successfully in
+                 _test_disambiguation.xml's tip), and intermediate
+                 verticality doesn't matter here -- nothing is read
+                 mid-flip, only the final released pose needs to be safe,
+                 and that final pose (net 180deg) is proven horizontal
+                 regardless of path (see derive_opposite_flip.py: result
+                 depends only on total rotation, not on how it's split). -->
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="base_link" position="0.0;0.0;0.0" orientation="0.0;0.7071067811865476;0.0;0.7071067811865476"/>
+            </RetryUntilSuccessful>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="base_link" position="0.0;0.0;0.0" orientation="0.0;0.7071067811865476;0.0;0.7071067811865476"/>
+            </RetryUntilSuccessful>
+            <!-- Descend and release directly -- no correction needed, the
+                 closing axis is guaranteed horizontal here (see rationale
+                 above), so this should be a plain reachable pose, same
+                 kinematic class as the original pick. -->
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="base_link" position="0.0;0.0;-0.10" orientation="0.0;0.0;0.0;1.0"/>
+            </RetryUntilSuccessful>
+            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.045" max_effort="1.0"/>
+            <Fallback>
+                <DetachObject service_name="/detach_object" object_id="dice"/>
+                <AlwaysSuccess/>
+            </Fallback>
+            <!-- Re-identify: should now be face1's opposite, reliably (not
+                 ambiguous), proving the flip worked and the resulting
+                 face is camera-readable. -->
+            <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
+            <MoveToJoint action_name="/move_to_joint" joint_target="0.0;-1.97;2.13;-1.83;-1.50;0.0"/>
+        </Sequence>
+    </BehaviorTree>
+</root>
