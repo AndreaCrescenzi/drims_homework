@@ -5,6 +5,10 @@ bt_executer_node:
     plugins:
       - get_grasp_orientation
       - plan_rotation_path
+      - resolve_die_orientation
+      - compute_canonical_placement
+      - get_tip_rotation
+      - compute_relative_rotation
     ros_plugins:
       - dice_identification
       - move_to_pose
@@ -14,3 +18,7 @@ bt_executer_node:
       - detach_object
       - get_face_rotation
       - compute_xy_correction
+      - check_closing_axis_vertical
+      - select_tip_axis
+      - capture_frame_rotation
+      - allow_attached_contact

@@ -71,7 +71,7 @@ def generate_launch_description():
         description='Face number (1-6) the die should end up showing.')
     place_x_arg = DeclareLaunchArgument(
         'place_x',
-        default_value='0.55',
+        default_value='0.365',
         description='Final placement X, in base_link (also used for the '
                      'pre-rotation relocation away from the camera bar). '
                      '0.45 also clears the bar but left some post-rotation '
@@ -83,17 +83,17 @@ def generate_launch_description():
                      'after changing this, try a nearby value.')
     place_y_arg = DeclareLaunchArgument(
         'place_y',
-        default_value='0.1',
+        default_value='0.265',
         description='Final placement Y, in base_link (also used for the '
                      'pre-rotation relocation away from the camera bar).')
     place_z_arg = DeclareLaunchArgument(
         'place_z',
-        default_value='0.027',
+        default_value='0.012',
         description="Final placement Z, in base_link -- the die's own "
                      'resting height when flat on the table.')
     lift_height_arg = DeclareLaunchArgument(
         'lift_height',
-        default_value='0.07',
+        default_value='0.035',
         description='How far (m) the die is lifted while being relocated '
                      'to the safe zone, before rotating. Lower means the '
                      'arm rises less, but too low risks NO_IK_SOLUTION on '
@@ -118,19 +118,19 @@ def generate_launch_description():
                      'the workspace.')
     place_x_vertical_arg = DeclareLaunchArgument(
         'place_x_vertical',
-        default_value='0.55',
+        default_value='0.365',
         description='place_x variant used ONLY when tilt_deg resolves to '
                      'exactly 0. NOT YET EMPIRICALLY VERIFIED -- defaults '
                      'to the same value as place_x.')
     place_y_vertical_arg = DeclareLaunchArgument(
         'place_y_vertical',
-        default_value='0.1',
+        default_value='0.265',
         description='place_y variant used ONLY when tilt_deg resolves to '
                      'exactly 0. NOT YET EMPIRICALLY VERIFIED -- defaults '
                      'to the same value as place_y.')
     place_z_vertical_arg = DeclareLaunchArgument(
         'place_z_vertical',
-        default_value='0.05',
+        default_value='0.012',
         description='Release height used ONLY when tilt_deg resolves to '
                      'exactly 0 (a vertical approach needs a bit more '
                      'clearance above the table at release than the '
@@ -143,7 +143,7 @@ def generate_launch_description():
                      'placement runs.')
     lift_height_vertical_arg = DeclareLaunchArgument(
         'lift_height_vertical',
-        default_value='0.07',
+        default_value='0.035',
         description='lift_height variant used ONLY when tilt_deg '
                      'resolves to exactly 0. NOT YET EMPIRICALLY '
                      'VERIFIED -- defaults to the earlier-verified 0.07 '
