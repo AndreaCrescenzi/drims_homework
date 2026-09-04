@@ -307,9 +307,17 @@
                  axis) keeps the existing, kinematically-proven pick
                  untouched. -->
             <SelectTipAxis world_frame="world" gripper_frame="tool0" prefer_negative="false" tip_axis="{tip_axis}" alignment="{tip_alignment}"/>
-            <GetTipRotation tip_axis="{tip_axis}" orientation="{tip_quat}" inverse_orientation="{tip_quat_inv}"/>
+            <GetTipRotation tip_axis="{tip_axis}" orientation="{tip_quat}" inverse_orientation="{tip_quat_inv}" half_orientation="{tip_half}" half_inverse_orientation="{tip_half_inv}"/>
+            <!-- Two Cartesian 45deg steps rather than one joint-space
+                 90deg: the grasp point stays put and the wrist turns in
+                 place, instead of the sampling planner swinging the whole
+                 arm around to reach the same orientation. Same result,
+                 much smaller and safer motion. -->
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_quat}"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half}"/>
+            </RetryUntilSuccessful>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half}"/>
             </RetryUntilSuccessful>
             <!-- Evidence that the exposed face is actually readable: with
                  the closing axis parallel to the tip axis it should stay
@@ -331,7 +339,10 @@
                  good pick configuration. Same lesson as elsewhere in this
                  project: two smaller moves beat one large one. -->
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_quat_inv}"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half_inv}"/>
+            </RetryUntilSuccessful>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half_inv}"/>
             </RetryUntilSuccessful>
 
             <!-- Rotate to a canonical (yaw = 0) placement, chosen so the
@@ -340,9 +351,14 @@
                  closing axis exactly horizontal; rotations are 90 or 120deg.
                  tip_orientation is identity here: the tip has just been
                  undone, so no net rotation has been applied since the pick. -->
-            <ComputeCanonicalPlacement current_face="{face1}" resolved_theta_deg="{theta}" pick_orientation="{pick_orientation}" tip_orientation="0.0;0.0;0.0;1.0" orientation="{canonical_rot}" placed_face="{placed_face}"/>
+            <ComputeCanonicalPlacement current_face="{face1}" resolved_theta_deg="{theta}" pick_orientation="{pick_orientation}" tip_orientation="0.0;0.0;0.0;1.0" orientation="{canonical_rot}" half_orientation="{canonical_half}" placed_face="{placed_face}"/>
+            <!-- Two Cartesian half-steps, same reasoning as the tip: the
+                 wrist turns in place instead of the arm swinging around. -->
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="world" position="0.0;0.0;0.0" orientation="{canonical_rot}"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{canonical_half}"/>
+            </RetryUntilSuccessful>
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{canonical_half}"/>
             </RetryUntilSuccessful>
 
             <!-- Place back down centred under the camera. Re-reads the pose
