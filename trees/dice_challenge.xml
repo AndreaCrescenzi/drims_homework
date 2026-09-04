@@ -16,18 +16,18 @@
             <!-- Gripper failures never stop the tree: the effort field is an int in the
                              adapter, so a valid command can be reported as failed. -->
             <Fallback>
-                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.043" max_effort="1.0"/>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.043" max_effort="{grip_effort}"/>
                 <AlwaysSuccess/>
             </Fallback>
             <DiceIdentification service_name="/dice_identification" face_number="{face}" pose="{dice_pose}"/>
             <!-- Before the pick: only needs the face frames, not the grasp. -->
             <GetFaceRotation current_face="{face}" target_face="{target}" orientation="{rel_quat}" ref_frame="{ref_frame}"/>
-            <GetGraspOrientation current_face="{face}" target_face="{target}" rotation_quat="{rel_quat}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <GetGraspOrientation orientation_override="{grasp_orientation}" current_face="{face}" target_face="{target}" rotation_quat="{rel_quat}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
             <RetryUntilSuccessful num_attempts="2">
                 <MoveToPose action_name="/move_to_pose" cartesian_motion="true" frame_id="dice_tf" position="{grasp_offset}" orientation="{pick_orientation}"/>
             </RetryUntilSuccessful>
             <Fallback>
-                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_close}" max_effort="1.0"/>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_close}" max_effort="{grip_effort}"/>
                 <AlwaysSuccess/>
             </Fallback>
             <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
@@ -62,7 +62,7 @@
                             <AlwaysSuccess/>
                         </Fallback>
                         <Fallback>
-                            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_open}" max_effort="1.0"/>
+                            <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_open}" max_effort="{grip_effort}"/>
                             <AlwaysSuccess/>
                         </Fallback>
                     </Sequence>
@@ -78,7 +78,7 @@
                         <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="base_link" position="{xy_corr}" orientation="0.0;0.0;0.0;1.0"/>
                     </RetryUntilSuccessful>
                     <Fallback>
-                        <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_open}" max_effort="1.0"/>
+                        <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_open}" max_effort="{grip_effort}"/>
                         <AlwaysSuccess/>
                     </Fallback>
                     <DetachObject service_name="/detach_object" object_id="dice"/>
@@ -94,7 +94,9 @@
                  entries rather than written into each node, so patch_tree has
                  one place to rewrite and the tree stays readable. -->
             <SetBlackboard output_key="grasp_offset" value="0.0;0.0;0.0"/>
-            <SetBlackboard output_key="grip_close" value="0.0"/>
+            <SetBlackboard output_key="grasp_orientation" value="0;0;0;0"/>
+            <SetBlackboard output_key="grip_close" value="0.024"/>
+            <SetBlackboard output_key="grip_effort" value="1.0"/>
             <SetBlackboard output_key="grip_open" value="0.045"/>
             <SetBlackboard output_key="phase1_tilt" value="0.0"/>
             <!-- Target face for this run. -->
@@ -106,7 +108,7 @@
                 <AlwaysSuccess/>
             </Fallback>
             <Fallback>
-                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.043" max_effort="1.0"/>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.043" max_effort="{grip_effort}"/>
                 <AlwaysSuccess/>
             </Fallback>
             <RetryUntilSuccessful num_attempts="3">
@@ -121,12 +123,12 @@
                              returns NO_IK_SOLUTION. Safe because the carry pose below
                              decouples the grasp from everything downstream. -->
             <!-- From the blackboard: patch_tree strips every literal tilt_deg="...". -->
-            <GetGraspOrientation current_face="{face1}" target_face="{face1}" tilt_deg="{phase1_tilt}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
+            <GetGraspOrientation orientation_override="{grasp_orientation}" current_face="{face1}" target_face="{face1}" tilt_deg="{phase1_tilt}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
             <RetryUntilSuccessful num_attempts="2">
                 <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="{grasp_offset}" orientation="{pick_orientation}"/>
             </RetryUntilSuccessful>
             <Fallback>
-                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_close}" max_effort="1.0"/>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_close}" max_effort="{grip_effort}"/>
                 <AlwaysSuccess/>
             </Fallback>
             <AttachObject service_name="/attach_object" object_id="dice" target_frame_id="tool0"/>
@@ -175,7 +177,7 @@
                 <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="base_link" position="{centre_place}" orientation="0.0;0.0;0.0;1.0"/>
             </RetryUntilSuccessful>
             <Fallback>
-                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_open}" max_effort="1.0"/>
+                <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="{grip_open}" max_effort="{grip_effort}"/>
                 <AlwaysSuccess/>
             </Fallback>
             <Fallback>
@@ -203,12 +205,12 @@
                     <AlwaysSuccess/>
                 </Precondition>
                 <Precondition if="num_steps==1" else="FAILURE">
-                    <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false" grasp_offset="{grasp_offset}" grip_close="{grip_close}" grip_open="{grip_open}"/>
+                    <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false" grasp_offset="{grasp_offset}" grasp_orientation="{grasp_orientation}" grip_close="{grip_close}" grip_open="{grip_open}" grip_effort="{grip_effort}"/>
                 </Precondition>
                 <Precondition if="num_steps==2" else="FAILURE">
                     <Sequence>
-                        <SubTree ID="ReorientCycle" target="{intermediate}" skip_placement="true" grasp_offset="{grasp_offset}" grip_close="{grip_close}" grip_open="{grip_open}"/>
-                        <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false" grasp_offset="{grasp_offset}" grip_close="{grip_close}" grip_open="{grip_open}"/>
+                        <SubTree ID="ReorientCycle" target="{intermediate}" skip_placement="true" grasp_offset="{grasp_offset}" grasp_orientation="{grasp_orientation}" grip_close="{grip_close}" grip_open="{grip_open}" grip_effort="{grip_effort}"/>
+                        <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false" grasp_offset="{grasp_offset}" grasp_orientation="{grasp_orientation}" grip_close="{grip_close}" grip_open="{grip_open}" grip_effort="{grip_effort}"/>
                     </Sequence>
                 </Precondition>
             </Fallback>

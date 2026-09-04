@@ -49,6 +49,8 @@ def launch_setup(context, *args, **kwargs):
         'tilt_deg': LaunchConfiguration('tilt_deg').perform(context),
         'grasp_offset': LaunchConfiguration('grasp_offset').perform(context),
         'grip_close': LaunchConfiguration('grip_close').perform(context),
+        'grasp_orientation': LaunchConfiguration('grasp_orientation').perform(context),
+        'grip_effort': LaunchConfiguration('grip_effort').perform(context),
         'grip_open': LaunchConfiguration('grip_open').perform(context),
         'phase1_tilt': LaunchConfiguration('phase1_tilt').perform(context),
         'place_x_vertical': LaunchConfiguration('place_x_vertical').perform(context),
@@ -128,6 +130,21 @@ def generate_launch_description():
                     'it to correct a systematic bias in the detector, or to '
                     'close a little off-centre.'
     )
+    grasp_orientation_arg = DeclareLaunchArgument(
+        'grasp_orientation',
+        default_value='0;0;0;0',
+        description='Grasp orientation relative to dice_tf, "x;y;z;w". A zero '
+                    'quaternion means derive it. Overrides BOTH grasps, and '
+                    'the derived one is what keeps a finger off the face the '
+                    'camera must see -- a fixed quaternion cannot.'
+    )
+    grip_effort_arg = DeclareLaunchArgument(
+        'grip_effort',
+        default_value='1.0',
+        description='Gripper effort. The adapter casts it to an int, so below '
+                    '1.0 it becomes 0 and the command reports failure even '
+                    'though the gripper moves.'
+    )
     grip_close_arg = DeclareLaunchArgument(
         'grip_close',
         default_value='0.024',
@@ -190,6 +207,8 @@ def generate_launch_description():
         lift_height_arg,
         tilt_deg_arg,
         grasp_offset_arg,
+        grasp_orientation_arg,
+        grip_effort_arg,
         grip_close_arg,
         grip_open_arg,
         phase1_tilt_arg,

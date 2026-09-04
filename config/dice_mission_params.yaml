@@ -20,10 +20,20 @@ place_z: 0.012
 # Relative lift before relocating the die, in metres.
 lift_height: 0.035
 
-# Grasp pose relative to dice_tf, "x;y;z" in metres. All zeros means grasp
-# the die at the frame vision reports. Use it to correct a systematic bias
-# in the detector, or to close a little off-centre.
+# Grasp pose relative to dice_tf. Position "x;y;z" in metres: all zeros
+# means grasp the die where vision reports it. Use it to correct a
+# systematic bias in the detector, or to close a little off-centre.
 grasp_offset: "0.0;0.0;0.0"
+
+# Grasp orientation relative to dice_tf, "x;y;z;w". A zero quaternion means
+# "derive it" -- the default, and what you want unless you have a reason.
+#
+# WARNING: this overrides BOTH grasps. The derived orientation is what keeps
+# a finger off the face the camera must see and off the face that will rest
+# on the table; a fixed quaternion cannot do that, because which faces are
+# safe to pinch depends on the current and target face. Set it to diagnose
+# or to force a specific approach, then put it back to zeros.
+grasp_orientation: "0;0;0;0"
 
 # Gripper positions in metres. grip_close does NOT have to be 0: closing
 # fully makes the fingers interpenetrate the die's collision model, and on
@@ -31,6 +41,12 @@ grasp_offset: "0.0;0.0;0.0"
 # grip_close a little under 0.030.
 grip_close: 0.024
 grip_open: 0.045
+
+# Gripper effort. NOTE: the Robotiq adapter casts this to an int, so any
+# value below 1.0 becomes 0 and the command is reported as failed even
+# though the gripper moves. The tree ignores gripper failures for that
+# reason, but keep this >= 1.0 unless you are deliberately testing it.
+grip_effort: 1.0
 
 # Approach tilt of the FIRST grasp (phase 1), about the gripper's closing
 # axis. 0 is a vertical approach: it reaches the corners of the play area
