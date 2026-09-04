@@ -82,7 +82,7 @@
             <GetFaceRotation current_face="{face}" target_face="{target}" orientation="{rel_quat}" ref_frame="{ref_frame}"/>
             <GetGraspOrientation current_face="{face}" target_face="{target}" rotation_quat="{rel_quat}" pick_orientation="{pick_orientation}" grasp_yaw_deg="{grasp_yaw}"/>
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" cartesian_motion="false" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
+                <MoveToPose action_name="/move_to_pose" cartesian_motion="true" frame_id="dice_tf" position="0.0;0.0;0.0" orientation="{pick_orientation}"/>
             </RetryUntilSuccessful>
             <Fallback>
                 <GripperCommand action_name="/gripper_action_controller/gripper_cmd" position="0.0" max_effort="1.0"/>
@@ -314,10 +314,7 @@
                  arm around to reach the same orientation. Same result,
                  much smaller and safer motion. -->
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half}"/>
-            </RetryUntilSuccessful>
-            <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half}"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_quat}"/>
             </RetryUntilSuccessful>
             <!-- Evidence that the exposed face is actually readable: with
                  the closing axis parallel to the tip axis it should stay
@@ -339,10 +336,7 @@
                  good pick configuration. Same lesson as elsewhere in this
                  project: two smaller moves beat one large one. -->
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half_inv}"/>
-            </RetryUntilSuccessful>
-            <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_half_inv}"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{tip_quat_inv}"/>
             </RetryUntilSuccessful>
 
             <!-- Rotate to a canonical (yaw = 0) placement, chosen so the
@@ -355,10 +349,7 @@
             <!-- Two Cartesian half-steps, same reasoning as the tip: the
                  wrist turns in place instead of the arm swinging around. -->
             <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{canonical_half}"/>
-            </RetryUntilSuccessful>
-            <RetryUntilSuccessful num_attempts="2">
-                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{canonical_half}"/>
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.0" orientation="{canonical_rot}"/>
             </RetryUntilSuccessful>
 
             <!-- Place back down centred under the camera. Re-reads the pose
@@ -384,6 +375,17 @@
                 <AlwaysSuccess/>
             </Fallback>
 
+            <!-- Small straight retreat before anything else moves. Left
+                 where it is, the open gripper sits right on top of the die
+                 it just released, so the next pick has to reorient the
+                 wrist from there -- with the die underneath, the planner
+                 takes a wide way round. Backing straight up a few cm first
+                 turns that into a short, ordinary approach. Cartesian: a
+                 pure translation, so it stays a straight line. -->
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="true" frame_id="world" position="0.0;0.0;0.05" orientation="0.0;0.0;0.0;1.0"/>
+            </RetryUntilSuccessful>
+
             <!-- Verification read: the face now up must equal placed_face.
                  Logged by bt_executor_node so a run can be checked at a
                  glance. -->
@@ -395,7 +397,14 @@
                  is false: this is the final hop, the die must be rested. -->
             <SubTree ID="ReorientCycle" target="{target_face}" skip_placement="false"/>
 
-            <MoveToJoint action_name="/move_to_joint" joint_target="1.5708;-1.97;2.13;-1.83;-1.50;0.0"/>
+            <!-- Cartesian, not MoveToJoint: a joint-space home lets the
+                 planner swing the arm wide on the way back. This is the
+                 same configuration, written as the tool pose it produces
+                 (read from TF at the home joints), so the arm travels
+                 there in a straight line instead. -->
+            <RetryUntilSuccessful num_attempts="2">
+                <MoveToPose action_name="/move_to_pose" cartesian_motion="true" frame_id="base_link" position="-0.140;0.331;0.403" orientation="0.998;0.001;-0.035;-0.050"/>
+            </RetryUntilSuccessful>
         </Sequence>
     </BehaviorTree>
 </root>
