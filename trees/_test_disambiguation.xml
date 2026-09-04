@@ -3,9 +3,9 @@
     Diagnostic/dev tree: proves out the tip-and-relook disambiguation for
     the 90deg-pip-symmetric faces (1, 4, 5). Spawn the die showing one of
     those faces, run this, and check the printed resolved_theta_deg
-    against the ResolveAmbiguousFace lookup table (derived and verified
-    numerically -- see resolve_ambiguous_face.hpp's comment) for the
-    (ambiguous_face, second_face) pair logged by bt_executor_node.
+    against the ResolveDieOrientation lookup table (derived and verified
+    numerically -- see resolve_die_orientation.hpp's comment) for the
+    (current_face, second_face) pair logged by bt_executor_node.
 
     Uses the REAL /dice_identification (ground truth in sim) for both
     reads -- deliberately, not /dice_identification_noisy: the algorithm
@@ -86,7 +86,7 @@
                  safety correction below -- still reading the REAL
                  ground-truth /dice_identification (correct regardless of
                  finger placement in THIS simulated setup), so the
-                 resolve_ambiguous_face.hpp lookup table (derived for the
+                 resolve_die_orientation.hpp lookup table (derived for the
                  face reached immediately after the tip) stays valid
                  unchanged. A real camera would need the "infer from
                  kinematics when occluded" logic noted in
@@ -94,7 +94,7 @@
                  deliberately not built yet, out of scope for proving the
                  core algorithm. -->
             <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
-            <ResolveAmbiguousFace ambiguous_face="{face1}" second_face="{face2}" resolved_theta_deg="{theta}"/>
+            <ResolveDieOrientation current_face="{face1}" second_face="{face2}" resolved_theta_deg="{theta}"/>
             <!-- Release-safety fix (replaces the old per-case
                  CheckClosingAxisVertical + conditional-sign correction,
                  which could not work: a boolean "is it vertical" throws

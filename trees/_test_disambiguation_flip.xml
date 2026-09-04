@@ -20,7 +20,7 @@
     4<->3, 5<->2 -- none of 6/3/2 is in the 90deg-symmetric set), so the
     face exposed by the flip is ALWAYS reliably readable by a real top-
     down camera. This removes the entire 4-hypothesis lookup table
-    (ResolveAmbiguousFace) and the closing-axis-vertical release check
+    (ResolveDieOrientation) and the closing-axis-vertical release check
     (CheckClosingAxisVertical) from the pipeline: we don't need to
     recover face1's exact original orientation at all, because the
     downstream handoff (ReorientCycle) re-identifies its own current face

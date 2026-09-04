@@ -97,7 +97,7 @@
                 <MoveToPose action_name="/move_to_pose" relative_motion="true" cartesian_motion="false" frame_id="base_link" position="0.0;0.0;0.0" orientation="0.0;0.7071067811865476;0.0;0.7071067811865476"/>
             </RetryUntilSuccessful>
             <DiceIdentification service_name="/dice_identification" face_number="{face2}" pose="{dice_pose2}"/>
-            <ResolveAmbiguousFace ambiguous_face="{face1}" second_face="{face2}" resolved_theta_deg="{theta}"/>
+            <ResolveDieOrientation current_face="{face1}" second_face="{face2}" resolved_theta_deg="{theta}"/>
             <!-- Release-safety fix: always undo the exact tip rotation
                  (same fixed world_Y axis, opposite angle) instead of
                  detecting+correcting verticality per case. This returns
