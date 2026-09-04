@@ -47,6 +47,10 @@ def launch_setup(context, *args, **kwargs):
         'place_z': LaunchConfiguration('place_z').perform(context),
         'lift_height': LaunchConfiguration('lift_height').perform(context),
         'tilt_deg': LaunchConfiguration('tilt_deg').perform(context),
+        'grasp_offset': LaunchConfiguration('grasp_offset').perform(context),
+        'grip_close': LaunchConfiguration('grip_close').perform(context),
+        'grip_open': LaunchConfiguration('grip_open').perform(context),
+        'phase1_tilt': LaunchConfiguration('phase1_tilt').perform(context),
         'place_x_vertical': LaunchConfiguration('place_x_vertical').perform(context),
         'place_y_vertical': LaunchConfiguration('place_y_vertical').perform(context),
         'place_z_vertical': LaunchConfiguration('place_z_vertical').perform(context),
@@ -116,6 +120,34 @@ def generate_launch_description():
                      'current/target face pair wants, or comparing '
                      'vertical vs. tilted reachability near the edge of '
                      'the workspace.')
+
+    grasp_offset_arg = DeclareLaunchArgument(
+        'grasp_offset',
+        default_value='0.0;0.0;0.0',
+        description='Grasp pose relative to dice_tf, "x;y;z" in metres. Use '
+                    'it to correct a systematic bias in the detector, or to '
+                    'close a little off-centre.'
+    )
+    grip_close_arg = DeclareLaunchArgument(
+        'grip_close',
+        default_value='0.024',
+        description='Gripper position when closing on the die, in metres. It '
+                    'need not be 0: closing fully makes the fingers '
+                    'interpenetrate the die model and squeezes harder than '
+                    'needed on the real gripper.'
+    )
+    grip_open_arg = DeclareLaunchArgument(
+        'grip_open',
+        default_value='0.045',
+        description='Gripper position when releasing, in metres.'
+    )
+    phase1_tilt_arg = DeclareLaunchArgument(
+        'phase1_tilt',
+        default_value='0.0',
+        description="Approach tilt of the FIRST grasp, about the gripper's "
+                    'closing axis. 0 is vertical, which reaches the corners '
+                    'of the play area the tilted approach cannot.'
+    )
     place_x_vertical_arg = DeclareLaunchArgument(
         'place_x_vertical',
         default_value='0.365',
@@ -157,6 +189,10 @@ def generate_launch_description():
         place_z_arg,
         lift_height_arg,
         tilt_deg_arg,
+        grasp_offset_arg,
+        grip_close_arg,
+        grip_open_arg,
+        phase1_tilt_arg,
         place_x_vertical_arg,
         place_y_vertical_arg,
         place_z_vertical_arg,

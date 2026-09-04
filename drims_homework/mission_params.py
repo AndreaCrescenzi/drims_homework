@@ -88,6 +88,20 @@ PARAM_PATTERNS = {
     # trusting a lower value.
     'lift_height': (r'z_offset="[-\d.]+"', 'z_offset="{value}"',
                      "a 'z_offset=\"...\"' attribute"),
+    # Blackboard-declared parameters: patched by output_key, so the value
+    # can be rewritten any number of times and the tree stays readable.
+    'grasp_offset': (r'(output_key="grasp_offset" value=")[^"]*(")',
+                     r'\g<1>{value}\g<2>',
+                     "the 'grasp_offset' SetBlackboard"),
+    'grip_close': (r'(output_key="grip_close" value=")[^"]*(")',
+                   r'\g<1>{value}\g<2>',
+                   "the 'grip_close' SetBlackboard"),
+    'grip_open': (r'(output_key="grip_open" value=")[^"]*(")',
+                  r'\g<1>{value}\g<2>',
+                  "the 'grip_open' SetBlackboard"),
+    'phase1_tilt': (r'(output_key="phase1_tilt" value=")[^"]*(")',
+                    r'\g<1>{value}\g<2>',
+                    "the 'phase1_tilt' SetBlackboard"),
 }
 
 

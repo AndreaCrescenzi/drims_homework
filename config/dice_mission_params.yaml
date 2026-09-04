@@ -1,55 +1,53 @@
 # Mission parameters for dice_challenge.xml, read by
-# dice_mission_from_config.launch.py (edit this file, then just
-# `ros2 launch drims_homework dice_mission_from_config.launch.py`,
-# instead of typing target_face:=... place_x:=... etc. by hand every
-# time -- see dice_mission.launch.py for the CLI-argument alternative,
-# still available if you want to override one value for a single run
-# without editing this file).
+# dice_mission_from_config.launch.py. Edit and run:
 #
-# See drims_homework/mission_params.py for what each value does and its
-# safety caveats (place_x/y, lift_height in particular).
+#   ros2 launch drims_homework dice_mission_from_config.launch.py
+#
+# dice_mission.launch.py takes the same values as CLI arguments if you
+# only want to override one for a single run.
 
+# Face to leave facing up.
 target_face: 6
-place_x: 0.55
-place_y: 0.1
-place_z: 0.027
-lift_height: 0.05
 
-# Pick approach angle, applied about the gripper's own closing axis:
-#   auto  (default) -- geometry-derived sign, ~45deg tilted approach;
-#                       lets the final placement bring the die closer to
-#                       the table than a vertical approach would.
-#   0     -- plain vertical approach (no tilt).
-#   45 / -45 (or any value) -- explicit override, mainly for diagnosing
-#                       which sign a given current/target face pair wants,
-#                       or comparing vertical vs. tilted reachability near
-#                       the edge of the workspace.
+# Where the die is put down, in camera_frame_floor (the play field, so
+# these stay valid if the cell or the robot mounting changes). The plate
+# centre is (0.365, 0.265); place_z is a base_link height and 0.012 is
+# where the die's reported frame sits when it rests on the plate.
+place_x: 0.365
+place_y: 0.265
+place_z: 0.012
+
+# Relative lift before relocating the die, in metres.
+lift_height: 0.035
+
+# Grasp pose relative to dice_tf, "x;y;z" in metres. All zeros means grasp
+# the die at the frame vision reports. Use it to correct a systematic bias
+# in the detector, or to close a little off-centre.
+grasp_offset: "0.0;0.0;0.0"
+
+# Gripper positions in metres. grip_close does NOT have to be 0: closing
+# fully makes the fingers interpenetrate the die's collision model, and on
+# the real gripper it squeezes harder than needed. A 30mm die is held with
+# grip_close a little under 0.030.
+grip_close: 0.024
+grip_open: 0.045
+
+# Approach tilt of the FIRST grasp (phase 1), about the gripper's closing
+# axis. 0 is a vertical approach: it reaches the corners of the play area
+# where the tilted one returns NO_IK_SOLUTION, and it is safe here because
+# the fixed carry configuration decouples this grasp from the tip.
+phase1_tilt: 0.0
+
+# Approach tilt for the reorientation grasps (phase 2):
+#   auto  -- geometry-derived sign, ~45deg, lets the placement bring the
+#            die closer to the table than a vertical approach would;
+#   0     -- vertical;
+#   45 / -45 -- explicit override.
 tilt_deg: auto
 
-# place_x/y/z and lift_height variants used ONLY when tilt_deg resolves
-# to exactly 0 (a vertical approach) -- override the corresponding base
-# value above for that case. A vertical approach needs different
-# clearances than the ~45deg tilted approach the base values are tuned
-# for: a bit more height at release (place_z_vertical) since the gripper
-# body comes straight down instead of diagonally, and possibly a
-# different safe zone / lift clearance too (place_x/y_vertical,
-# lift_height_vertical) since that safe zone was only verified reachable
-# with the tilted wrist configuration.
-#
-# IMPORTANT: place_z_vertical is an ABSOLUTE target height (like place_z),
-# NOT added on top of lift_height_vertical -- they're two independent
-# moves (lift_height_vertical is the RELATIVE lift during the pre-
-# rotation relocation; place_z_vertical is the ABSOLUTE final height).
-#
-# VERIFIED (RViz, 2026-09-02): setting place_z_vertical ==
-# place_z + lift_height_vertical makes the final placement move's
-# vertical delta ~0 -- the relocation lift already reaches that exact
-# absolute height, so the placement step has nothing left to do in Z
-# (only a small XY correction for any drift the rotation caused) before
-# opening the gripper. No visible extra rise/descent. 0.13 = 0.027
-# (place_z) + 0.1 (lift_height_vertical, rounded) -- keep this relation
-# if you change either value.
-place_x_vertical: 0.55
-place_y_vertical: 0.1
-place_z_vertical: 0.13
-lift_height_vertical: 0.1
+# Used ONLY when tilt_deg resolves to exactly 0: a vertical approach needs
+# different clearances than the tilted one the base values are tuned for.
+place_x_vertical: 0.365
+place_y_vertical: 0.265
+place_z_vertical: 0.012
+lift_height_vertical: 0.035
